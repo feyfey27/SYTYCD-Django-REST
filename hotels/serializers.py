@@ -2,8 +2,11 @@ from datetime import datetime
 
 from rest_framework import serializers
 
+from rest_framework.filters import SearchFilter
+
 from .models import Hotel, Booking
 
+from django.contrib.auth.models import User
 
 class HotelsListSerializer(serializers.ModelSerializer):
 	details = serializers.HyperlinkedIdentityField(
@@ -24,7 +27,7 @@ class HotelDetailsSerializer(serializers.ModelSerializer):
 		)
 	class Meta:
 		model = Hotel
-		fields = ["name", "location", "price", "book"]
+		fields = ["name", "location", "price_per_night", "book"]
 
 
 class BookHotelSerializer(serializers.ModelSerializer):
@@ -45,10 +48,15 @@ class BookingDetailsSerializer(serializers.ModelSerializer):
 		lookup_field = "id",
 		lookup_url_kwarg = "booking_id"
 		)
+	total = serializers.SerializerMethodField()
+
 	class Meta:
 		model = Booking
-		fields = ["hotel", "check_in", 'number_of_nights', 'modify']
+		fields = ['hotel', 'check_in', 'number_of_nights', 'modify', 'cancel', "total"]
 
+	def get_total(self, obj):
+		total = obj.number_of_nights * obj.hotel.price_per_night
+		return total
 
 class PastBookingDetailsSerializer(serializers.ModelSerializer):
 	hotel = serializers.StringRelatedField()
@@ -64,13 +72,13 @@ class UserSerializer(serializers.ModelSerializer):
 		model = User
 		fields = ["username", "name", "email", "past_bookings"]
 
-	def name(self, obj):
+	def get_name(self, obj):
 		return "%s %s"%(obj.first_name, obj.last_name)
 
 	def get_past_bookings(self, obj):
 		today = datetime.today()
 		bookings = obj.bookings.filter(check_in__lt=today)
-		return PastBookingDetailsSerializer(bookings).data
+		return PastBookingDetailsSerializer(bookings, many=True).data
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
